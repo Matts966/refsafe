@@ -57,7 +57,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 				}
 				
-				pass.Reportf(instr.Pos(), "reflect.CanAddr() should be called before calling reflect.Addr()")
+				pass.Reportf(instr.Pos(), "reflect.CanAddr should be called before calling reflect.Addr")
 			}
 		}
 	}
