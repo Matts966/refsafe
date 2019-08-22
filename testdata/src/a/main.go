@@ -7,7 +7,7 @@ import (
 
 func test1(i *interface{}) {
 	rv := reflect.ValueOf(i)
-	rv.CanAddr()
+	// rv.CanAddr()
 	rv.Addr() // want `(reflect.Value).CanAddr should be true when invoking (reflect.Value).Addr`
 }
 
