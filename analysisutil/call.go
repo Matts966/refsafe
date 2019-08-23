@@ -2,6 +2,7 @@ package analysisutil
 
 import (
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -15,7 +16,6 @@ type CalledChecker struct {
 // Func returns true when f is called in the instr.
 // If recv is not nil, Called also checks the receiver.
 func (c *CalledChecker) Func(instr ssa.Instruction, recv ssa.Value, f *types.Func) bool {
-
 	if c.Ignore != nil && c.Ignore(instr) {
 		return false
 	}
@@ -40,9 +40,18 @@ func (c *CalledChecker) Func(instr ssa.Instruction, recv ssa.Value, f *types.Fun
 		return false
 	}
 
+	if f.Name() == "CanAddr" && fn.Name() == "CanAddr" {
+		log.Printf("f: %#v\n", f)
+		log.Printf("fn: %#v\n", fn)
+		log.Printf("f == fn: %v\n", f == fn)
+		log.Printf("Args: %#v\n", common.Args[0])
+		log.Printf("recv: %#v\n", recv)
+	}
+
 	if recv != nil &&
 		common.Signature().Recv() != nil &&
-		(len(common.Args) == 0 || common.Args[0] != recv) {
+		(len(common.Args) == 0 && recv != nil || common.Args[0] != recv) && {
+		recv not in common.Args[0].Referrers() && common.Args[0] not in common.Referrers()
 		return false
 	}
 
@@ -199,7 +208,7 @@ func CalledFrom(b *ssa.BasicBlock, i int, receiver types.Type, methods ...*types
 	return new(CalledChecker).From(b, i, receiver, methods...)
 }
 
-// CalledFromAfter is an alias to CalledFrom to distinguish CalledFromBefore from 
+// CalledFromAfter is an alias to CalledFrom to distinguish CalledFromBefore from
 // CalledFrom.
 var CalledFromAfter = CalledFrom
 
@@ -210,7 +219,7 @@ func Called(instr ssa.Instruction, recv ssa.Value, f *types.Func) bool {
 }
 
 // FromBefore checks whether receiver's method is called in an instruction
-// which belongs to before i-th instructions, or in succsor blocks of b.
+// which belongs to before i-th instructions, or in preds blocks of b.
 // The first result is above value.
 // The second result is whether type of i-th instruction does not much receiver
 // or matches with ignore cases.
@@ -263,7 +272,7 @@ func (c *calledFrom) preds(b *ssa.BasicBlock) bool {
 }
 
 // CalledFromBefore checks whether receiver's method is called in an instruction
-// which belogns to before i-th instructions, or in succsor blocks of b.
+// which belongs to before i-th instructions, or in preds blocks of b.
 // The first result is above value.
 // The second result is whether type of i-th instruction does not much receiver
 // or matches with ignore cases.
