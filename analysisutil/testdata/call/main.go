@@ -8,7 +8,7 @@ func (s *st) open() {
 	s.o = true
 }
 
-func (s *st) doSomething() {}
+func (*st) doSomething() {}
 
 func (s *st) close() {
 	s.o = false
