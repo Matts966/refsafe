@@ -31,11 +31,15 @@ func init() {
 		"test1": false,
 		"test2": true,
 		"test3": true,
+		"test4": false,
+		"test5": true,
 	}
 	afterTestResult = map[string]bool{
 		"test1": false,
 		"test2": true,
 		"test3": true,
+		"test4": true,
+		"test5": false,
 	}
 
 	fileName := "testdata/call/main.go"
@@ -66,6 +70,22 @@ func init() {
 
 func TestCalledFrom(t *testing.T) {
 	t.Parallel()
+	test(t, afterTestResult, analysisutil.CalledFrom)
+}
+
+func TestCalledFromAfter(t *testing.T) {
+	t.Parallel()
+	test(t, afterTestResult, analysisutil.CalledFromAfter)
+}
+
+func TestCalledFromBefore(t *testing.T) {
+	t.Parallel()
+	test(t, beforeTestResult, analysisutil.CalledFromBefore)
+}
+
+func test(t *testing.T, result map[string]bool, function func(b *ssa.BasicBlock, 
+		i int, receiver types.Type, methods ...*types.Func) (called, ok bool)) {
+	t.Helper()
 	for _, v := range ssapkg.Members {
 		if f := ssapkg.Func(v.Name()); f != nil {
 			for _, b := range f.Blocks {
@@ -74,39 +94,13 @@ func TestCalledFrom(t *testing.T) {
 						continue
 					}
 
-					if called, ok := analysisutil.CalledFromAfter(b, ii, st, close); !(called && ok) {
-						if !beforeTestResult[f.Name()] {
+					if called, ok := function(b, ii, st, close); !(called && ok) {
+						if !result[f.Name()] {
 							continue
 						}
 					}
 
-					if beforeTestResult[f.Name()] {
-						continue
-					}
-
-					t.Fatal("Setup function not called")
-				}
-			}
-		}
-	}
-}
-func TestCalledFromBefore(t *testing.T) {
-	t.Parallel()
-	for _, v := range ssapkg.Members {
-		if f := ssapkg.Func(v.Name()); f != nil {
-			for _, b := range f.Blocks {
-				for ii, i := range b.Instrs {
-					if !analysisutil.Called(i, nil, close) {
-						continue
-					}
-
-					if called, ok := analysisutil.CalledFromBefore(b, ii, st, open); !(called && ok) {
-						if !afterTestResult[f.Name()] {
-							continue
-						}
-					}
-
-					if afterTestResult[f.Name()] {
+					if result[f.Name()] {
 						continue
 					}
 

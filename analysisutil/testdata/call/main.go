@@ -36,3 +36,21 @@ func test3() {
 	s.doSomething()
 	s.close()
 }
+
+func test4() {
+	var s st
+	if true {
+		s.open()
+	} else {
+		s.close()
+	}
+	s.doSomething()
+	s.close()
+}
+
+func test5() {
+	var s st
+	s.open()
+	s.doSomething()
+	s.doSomething()
+}
