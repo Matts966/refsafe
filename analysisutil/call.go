@@ -2,7 +2,6 @@ package analysisutil
 
 import (
 	"go/types"
-	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -40,22 +39,33 @@ func (c *CalledChecker) Func(instr ssa.Instruction, recv ssa.Value, f *types.Fun
 		return false
 	}
 
-	if f.Name() == "CanAddr" && fn.Name() == "CanAddr" {
-		log.Printf("f: %#v\n", f)
-		log.Printf("fn: %#v\n", fn)
-		log.Printf("f == fn: %v\n", f == fn)
-		log.Printf("Args: %#v\n", common.Args[0])
-		log.Printf("recv: %#v\n", recv)
-	}
-
 	if recv != nil &&
 		common.Signature().Recv() != nil &&
-		(len(common.Args) == 0 && recv != nil || common.Args[0] != recv) && {
-		recv not in common.Args[0].Referrers() && common.Args[0] not in common.Referrers()
+		(len(common.Args) == 0 && recv != nil || common.Args[0] != recv &&
+			!isReferrer(recv, common.Args[0]) && !isReferrer(common.Args[0], recv)) {
 		return false
 	}
 
 	return fn == f
+}
+
+func isReferrer(a, b ssa.Value) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if b.Referrers() != nil {
+		brs := *b.Referrers()
+		for _, br := range brs {
+			brv, ok := br.(ssa.Value)
+			if !ok {
+				continue
+			}
+			if brv == a {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // From checks whether receiver's method is called in an instruction
@@ -74,14 +84,7 @@ func (c *CalledChecker) From(b *ssa.BasicBlock, i int, receiver types.Type, meth
 		return false, false
 	}
 
-	if !identical(v.Type(), receiver) {
-		return false, false
-	}
-
-	from := &calledFrom{recv: v, fs: methods, ignore: c.Ignore}
-	if from.ignored() {
-		return false, false
-	}
+	from := &calledFrom{recv: v, fs: methods}
 
 	if from.instrs(b.Instrs[i+1:]) ||
 		from.succs(b) {
@@ -92,27 +95,9 @@ func (c *CalledChecker) From(b *ssa.BasicBlock, i int, receiver types.Type, meth
 }
 
 type calledFrom struct {
-	recv   ssa.Value
-	fs     []*types.Func
-	done   map[*ssa.BasicBlock]bool
-	ignore func(ssa.Instruction) bool
-}
-
-func (c *calledFrom) ignored() bool {
-	refs := c.recv.Referrers()
-	if refs == nil {
-		return false
-	}
-
-	for _, ref := range *refs {
-		if !c.isOwn(ref) &&
-			((c.ignore != nil && c.ignore(ref)) ||
-				c.isRet(ref) || c.isArg(ref)) {
-			return true
-		}
-	}
-
-	return false
+	recv ssa.Value
+	fs   []*types.Func
+	done map[*ssa.BasicBlock]bool
 }
 
 func (c *calledFrom) isOwn(instr ssa.Instruction) bool {
@@ -168,6 +153,7 @@ func (c *calledFrom) isArg(instr ssa.Instruction) bool {
 func (c *calledFrom) instrs(instrs []ssa.Instruction) bool {
 	for _, instr := range instrs {
 		for _, f := range c.fs {
+			// log.Println(Called(instr, c.recv, f))
 			if Called(instr, c.recv, f) {
 				return true
 			}
@@ -234,11 +220,19 @@ func (c *CalledChecker) FromBefore(b *ssa.BasicBlock, i int, receiver types.Type
 		return false, false
 	}
 
+	// log.Printf("%#v\n", b.Instrs[i-1])
+	// log.Printf("%#v\n", b.Instrs[i])
+	// log.Printf("%#v\n", b.Instrs[i+1])
+
+	// Call の typeが返り値の場合かなえらずfalse?
 	if !identical(v.Type(), receiver) {
 		return false, false
 	}
 
-	from := &calledFrom{recv: v, fs: methods, ignore: c.Ignore}
+	from := &calledFrom{recv: v, fs: methods}
+
+	// log.Println(from.instrs(b.Instrs[:i]))
+	// log.Println(from.preds(b))
 
 	if from.instrs(b.Instrs[:i]) ||
 		from.preds(b) {
