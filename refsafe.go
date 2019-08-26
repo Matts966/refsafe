@@ -59,7 +59,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	val := analysisutil.TypeOf(pass, "reflect", "Value")
 	// canAddr := analysisutil.MethodOf(val, "reflect.CanAddr")
 	// addr := analysisutil.MethodOf(val, "reflect.Addr")
-
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
 	// TODO(Matts966): Check the code depends on reflect, and early return if not.
 	for _, f := range funcs {
@@ -87,6 +86,36 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 					pass.Reportf(instr.Pos(), c+" should be called before calling "+f)
 				}
+
+				setPointer := analysisutil.MethodOf(val, "SetPointer")
+				kind := analysisutil.MethodOf(val, "Kind")
+				up := analysisutil.TypeOf(pass, "reflect", "Interface")
+				// upo := analysisutil.ObjectOf(pass, "reflect", "Interface")
+
+				// for _, p := range b.Preds {
+				// 	i := analysisutil.IfInstr(p)
+				// 	if i != nil {
+				// 		b, ok := i.Cond.(*ssa.BinOp)
+
+				// 		if ok {
+				// 			// log.Printf("%#v\n", b.Y)
+				// 			// log.Printf("%#v\n", up)
+				// 		}
+				// 	}
+				// }
+
+				if !Called(instr, nil, setPointer) {
+					continue
+				}
+				callI, ok := instr.(ssa.CallInstruction)
+				if !ok {
+					continue
+				}
+				called, compared := CalledBeforeAndComparedTo(b, callI.Common().Args[0], kind, up)
+				if called && compared {
+					continue
+				}
+				pass.Reportf(instr.Pos(), "Kind should be UnsafePointer when calling SetPointer")
 			}
 		}
 	}
