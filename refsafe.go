@@ -4,6 +4,7 @@ import (
 	"github.com/Matts966/refsafe/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/ssa"
 )
 
 var Analyzer = &analysis.Analyzer{
@@ -70,14 +71,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 					// pass.Reportf(instr.Pos(), "%#v, %#v", m, cm)
 
-					if !analysisutil.Called(instr, nil, m) {
+					if !Called(instr, nil, m) {
 						continue
 					}
 
-					called, ok := analysisutil.CalledFromBefore(b, i, val, cm)
+					callI, ok := instr.(ssa.CallInstruction)
+					if !ok {
+						continue
+					}
+
+					called, ok := CalledFromBefore(b, i, callI.Common().Args[0], cm)
 					// pass.Reportf(instr.Pos(), "%#v, %#v", called, ok)
 					if called && ok {
-						
 						continue
 					}
 					pass.Reportf(instr.Pos(), c+" should be called before calling "+f)
