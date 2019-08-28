@@ -377,7 +377,7 @@ func (c *calledFrom) preds(b *ssa.BasicBlock) bool {
 }
 
 func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, compared bool) {
-	
+
 	if c.done == nil {
 		c.done = map[*ssa.BasicBlock]bool{}
 	}
@@ -390,7 +390,7 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 	if len(b.Preds) == 0 {
 		return false, false
 	}
-	
+
 	for _, p := range b.Preds {
 		if !c.instrs(p.Instrs) && !c.preds(p) {
 			return false, false
@@ -398,6 +398,9 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 	}
 
 	for _, p := range b.Preds {
+
+		//fmt.Printf("%#v\n", p)
+
 		if !c.instrs(p.Instrs) {
 			if _, comp := c.predsAndCompared(p, t); !comp {
 				return true, false
@@ -405,14 +408,15 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 			continue
 		}
 
-		
-
-		if _, comp := c.predsAndCompared(p, t); comp {
+		if _, comp := c.predsAndCompared(p, t); !comp {
 			continue
 		}
 
+		log.Println("OK")
+
 		ifi := analysisutil.IfInstr(p)
 		b, ok := ifi.Cond.(*ssa.BinOp)
+
 		// log.Printf("%#v", ifi)
 		if !ok {
 			// log.Printf("%#v", analysisutil.BinOps(p))
@@ -422,6 +426,7 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 			return true, false
 		}
 		i := c.calledIndex(p.Instrs)
+
 		if pv, ok := p.Instrs[i].(ssa.Value); ok {
 			for _, pvr := range *pv.Referrers() {
 				if pvr != ifi {
@@ -477,9 +482,9 @@ func (c *CalledChecker) BeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Valu
 
 	from := &calledFrom{recv: receiver, fs: []*types.Func{method}, ignore: c.Ignore}
 
-	if !from.preds(b) {
-		return false, false
-	}
+	// if !from.preds(b) {
+	// 	return false, false
+	// }
 
 	return from.predsAndCompared(b, t)
 }

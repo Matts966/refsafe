@@ -62,8 +62,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
 	// TODO(Matts966): Check the code depends on reflect, and early return if not.
 	for _, f := range funcs {
+
+		// fmt.Println()
+		// fmt.Printf("f: %v\n", f)
+
 		for _, b := range f.Blocks {
 			for i, instr := range b.Instrs {
+
+				// fmt.Printf("instr: %#v\n", instr)
+				// fmt.Printf("type: %T\n", instr)
+				// fmt.Println()
+
 				for f, c := range funcToCan {
 					m := analysisutil.MethodOf(val, f)
 					cm := analysisutil.MethodOf(val, c)
@@ -89,7 +98,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 				setPointer := analysisutil.MethodOf(val, "SetPointer")
 				kind := analysisutil.MethodOf(val, "Kind")
-				up := analysisutil.TypeOf(pass, "reflect", "Interface")
+				up := analysisutil.TypeOf(pass, "reflect", "Type")
 				// upo := analysisutil.ObjectOf(pass, "reflect", "Interface")
 
 				// for _, p := range b.Preds {
@@ -111,6 +120,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if !ok {
 					continue
 				}
+
+				//fmt.Printf("OK!!!!!!!!!!!!!\n%#v", up)
 				called, compared := CalledBeforeAndComparedTo(b, callI.Common().Args[0], kind, up)
 				if called && compared {
 					continue
