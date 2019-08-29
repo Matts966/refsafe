@@ -412,8 +412,6 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 			continue
 		}
 
-		log.Println("OK")
-
 		ifi := analysisutil.IfInstr(p)
 		b, ok := ifi.Cond.(*ssa.BinOp)
 
@@ -425,6 +423,9 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 		if b.X.Type() != t && b.Y.Type() != t {
 			return true, false
 		}
+
+		log.Println(b.X.Type(), b.Y.Type())
+
 		i := c.calledIndex(p.Instrs)
 
 		if pv, ok := p.Instrs[i].(ssa.Value); ok {

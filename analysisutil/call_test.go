@@ -41,19 +41,18 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	for _, f := range funcs {
 		for _, b := range f.Blocks {
 			for i, instr := range b.Instrs {
-				if !analysisutil.Called(instr, nil, doSomething) {
+				recv := analysisutil.ReturnReceiverIfCalled(instr, doSomething)
+				if recv == nil {
 					continue
 				}
 
-				if called, ok := analysisutil.CalledFromAfter(b, i, st, close); !(called && ok) {
+				if called, ok := analysisutil.CalledFromAfter(b, i, recv, close); !(called && ok) {
 					pass.Reportf(instr.Pos(), "close should be called after calling doSomething")
 				}
 
-				// log.Println("ここから", open)
-				if called, ok := analysisutil.CalledFromBefore(b, i, st, open); !(called && ok) {
+				if called, ok := analysisutil.CalledFromBefore(b, i, recv, open); !(called && ok) {
 					pass.Reportf(instr.Pos(), "open should be called before calling doSomething")
 				}
-				// log.Println("ここまで", open)
 			}
 		}
 	}
