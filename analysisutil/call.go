@@ -3,7 +3,6 @@ package analysisutil
 import (
 	"go/token"
 	"go/types"
-	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -39,7 +38,11 @@ func (c *CalledChecker) returnReceiverIfCalled(instr ssa.Instruction, f *types.F
 		return nil
 	}
 
-	return common.Args[0]
+	if len(common.Args) > 0 {
+		return common.Args[0]
+	}
+
+	return nil
 }
 
 // Func returns true when f is called in the instr.
@@ -483,7 +486,7 @@ func isSame(o types.Object, oc ssa.Value, bo *ssa.BinOp, ifi *ssa.If) bool {
 	if !ok {
 		return false
 	}
-	
+
 	if m.Object().Id() != o.Id() {
 		return false
 	}
