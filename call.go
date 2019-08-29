@@ -3,7 +3,6 @@ package refsafe
 import (
 	"go/token"
 	"go/types"
-	"log"
 
 	"github.com/Matts966/refsafe/analysisutil"
 	"golang.org/x/tools/go/ssa"
@@ -424,7 +423,7 @@ func (c *calledFrom) predsAndCompared(b *ssa.BasicBlock, t types.Type) (called, 
 			return true, false
 		}
 
-		log.Println(b.X.Type(), b.Y.Type())
+		// log.Println(b.X.Type(), b.Y.Type())
 
 		i := c.calledIndex(p.Instrs)
 

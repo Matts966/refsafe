@@ -3,6 +3,7 @@ package analysisutil
 import (
 	"go/token"
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -334,9 +335,9 @@ func (c *CalledChecker) FromBefore(b *ssa.BasicBlock, i int, receiver ssa.Value,
 	}
 
 	// If pointer value is indirected, get the raw value.
-	// if ru, ok := receiver.(*ssa.UnOp); ok && ru.Op == token.MUL {
-	// 	receiver = ru.X
-	// }
+	if ru, ok := receiver.(*ssa.UnOp); ok && ru.Op == token.MUL {
+		receiver = ru.X
+	}
 
 	from := &calledFrom{recv: receiver, fs: methods, ignore: c.Ignore}
 
@@ -388,64 +389,113 @@ func (c *calledFrom) preds(b *ssa.BasicBlock) bool {
 	return true
 }
 
-func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, t types.Type) (called, compared bool) {
+func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool {
 
 	if c.done == nil {
 		c.done = map[*ssa.BasicBlock]bool{}
 	}
 
 	if c.done[b] {
-		return false, false
+		return false
 	}
 	c.done[b] = true
 
 	if len(b.Preds) == 0 {
-		return false, false
-	}
-
-	for _, p := range b.Preds {
-		if !c.instrs(p.Instrs) && !c.preds(p) {
-			return false, false
-		}
+		return false
 	}
 
 	for _, p := range b.Preds {
 		if !c.instrs(p.Instrs) {
-			if _, comp := c.predsAndComparedTo(p, t); !comp {
-				return true, false
+			if !c.predsAndComparedTo(p, o) {
+				return false
 			}
 			continue
 		}
 
-		if _, comp := c.predsAndComparedTo(p, t); !comp {
-			continue
+		// The function is definitely called in this pass.
+		i := c.calledIndex(p.Instrs)
+		ret, ok := p.Instrs[i].(ssa.Value)
+		if !ok {
+			return false
 		}
 
 		ifi := IfInstr(p)
-		b, ok := ifi.Cond.(*ssa.BinOp)
+		var compared bool
+		for _, rr := range *ret.Referrers() {
+			bo, ok := rr.(*ssa.BinOp)
+			if !ok {
+				continue
+			}
 
-		if !ok {
-			return true, false
-		}
-		if b.X.Type() != t && b.Y.Type() != t {
-			return true, false
-		}
+			if bo.Op == token.EQL {
+				if b == p.Succs[0] {
+					continue
+				}
+				if bo.X == ret {
+					if isSame(o, bo.Y, bo, ifi) {
+						compared = true
+						break
+					}
+				}
+				if bo.Y == ret {
+					if isSame(o, bo.X, bo, ifi) {
+						compared = true
+						break
+					}
+				}
+			}
 
-		i := c.calledIndex(p.Instrs)
-
-		if pv, ok := p.Instrs[i].(ssa.Value); ok {
-			for _, pvr := range *pv.Referrers() {
-				if pvr != ifi {
-					return true, false
+			if bo.Op == token.NEQ {
+				if b != p.Succs[1] {
+					continue
+				}
+				if bo.X == ret {
+					if isSame(o, bo.Y, bo, ifi) {
+						compared = true
+						break
+					}
+				}
+				if bo.Y == ret {
+					if isSame(o, bo.X, bo, ifi) {
+						compared = true
+						break
+					}
 				}
 			}
 		}
+
+		if !compared {
+			return false
+		}
 	}
 
-	return true, true
+	return true
 }
 
-func (c *CalledChecker) BeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, t types.Type) (called, compared bool) {
+func isSame(o types.Object, oc ssa.Value, bo *ssa.BinOp, ifi *ssa.If) bool {
+	// If pointer value is indirected, get the raw value.
+	if ocu, ok := oc.(*ssa.UnOp); ok && ocu.Op == token.MUL {
+		oc = ocu.X
+	}
+
+	m, ok := oc.(ssa.Member)
+
+	if !ok {
+		return false
+	}
+	
+	if m.Object().Id() != o.Id() {
+		return false
+	}
+	for _, br := range *bo.Referrers() {
+		if br == ifi {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *CalledChecker) BeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
 	// If pointer value is indirected, get the raw value.
 	if ru, ok := receiver.(*ssa.UnOp); ok && ru.Op == token.MUL {
 		receiver = ru.X
@@ -453,7 +503,7 @@ func (c *CalledChecker) BeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Valu
 
 	from := &calledFrom{recv: receiver, fs: []*types.Func{method}, ignore: c.Ignore}
 
-	return from.predsAndComparedTo(b, t)
+	return from.predsAndComparedTo(b, o)
 }
 
 // CalledFromBefore checks whether receiver's method is called in an instruction
@@ -469,6 +519,6 @@ func CalledFromAfter(b *ssa.BasicBlock, i int, receiver ssa.Value, methods ...*t
 	return new(CalledChecker).FromAfter(b, i, receiver, methods...)
 }
 
-func CalledBeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, t types.Type) (called, compared bool) {
-	return new(CalledChecker).BeforeAndComparedTo(b, receiver, method, t)
+func CalledBeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
+	return new(CalledChecker).BeforeAndComparedTo(b, receiver, method, o)
 }

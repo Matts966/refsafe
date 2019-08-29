@@ -1,6 +1,8 @@
 package refsafe
 
 import (
+	"fmt"
+
 	"github.com/Matts966/refsafe/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -82,23 +84,33 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					if !Called(instr, nil, m) {
 						continue
 					}
+					
 
 					callI, ok := instr.(ssa.CallInstruction)
 					if !ok {
 						continue
 					}
 
-					called, ok := CalledFromBefore(b, i, callI.Common().Args[0], cm)
+					
+					called, ok := analysisutil.CalledFromBefore(b, i, callI.Common().Args[0], cm)
 					// pass.Reportf(instr.Pos(), "%#v, %#v", called, ok)
 					if called && ok {
 						continue
 					}
 					pass.Reportf(instr.Pos(), c+" should be called before calling "+f)
+
+					fmt.Printf("OK!!!!!!!!!!!!!\n")
 				}
 
 				setPointer := analysisutil.MethodOf(val, "SetPointer")
 				kind := analysisutil.MethodOf(val, "Kind")
-				up := analysisutil.TypeOf(pass, "reflect", "Type")
+				// up := analysisutil.TypeOf(pass, "reflect", "Type")
+
+				up, err := analysisutil.LookupFromImportString("reflect", "UnsafePointer")
+				if err != nil {
+					return nil, err
+				}
+
 				// upo := analysisutil.ObjectOf(pass, "reflect", "Interface")
 
 				// for _, p := range b.Preds {
@@ -121,8 +133,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				//fmt.Printf("OK!!!!!!!!!!!!!\n%#v", up)
-				called, compared := CalledBeforeAndComparedTo(b, callI.Common().Args[0], kind, up)
+				called, compared := analysisutil.CalledBeforeAndComparedTo(b, callI.Common().Args[0], kind, up)
 				if called && compared {
 					continue
 				}

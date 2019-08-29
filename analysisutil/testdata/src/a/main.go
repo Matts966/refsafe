@@ -1,5 +1,7 @@
 package main
 
+import "io"
+
 type st struct {
 	o bool
 }
@@ -14,6 +16,10 @@ func (*st) doSomething() {}
 func (s *st) close() {
 	s.o = false
 }
+
+func (*st) doSomethingSpecial() {}
+
+func (*st) err() error { return nil }
 
 func test1() {
 	var s st
@@ -63,4 +69,20 @@ func test6() {
 		return
 	}
 	s.doSomething() // want `close should be called after calling doSomething`
+}
+
+func test7() {
+	var s st
+	if s.err() != io.EOF {
+		return
+	}
+	s.doSomethingSpecial()
+}
+
+func test8() {
+	var s st
+	if s.err() != nil {
+		return
+	}
+	s.doSomethingSpecial() // want `err should be io.EOF when calling doSomethingSpecial`
 }

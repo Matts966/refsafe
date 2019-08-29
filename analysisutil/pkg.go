@@ -3,6 +3,7 @@ package analysisutil
 import (
 	"go/types"
 	"strings"
+	"golang.org/x/tools/go/loader"
 )
 
 // RemoVendor removes vendoring infomation from import path.
@@ -23,4 +24,15 @@ func LookupFromImports(imports []*types.Package, path, name string) types.Object
 		}
 	}
 	return nil
+}
+
+// LookupFromImportString finds an object from package and name.
+func LookupFromImportString(importPkg string, name string) (types.Object, error) {
+	lc := loader.Config{}
+	lc.Import(importPkg)
+	p, err := lc.Load()
+	if err != nil {
+		return nil, err
+	}
+	return p.Package(importPkg).Pkg.Scope().Lookup(name), nil
 }
