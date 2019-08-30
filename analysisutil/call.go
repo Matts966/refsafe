@@ -476,12 +476,18 @@ func (c *calledFrom) predsAndEqualTo(b *ssa.BasicBlock, o types.Object) bool {
 	return true
 }
 
-func isASuccOf(b *ssa.BasicBlock, p *ssa.BasicBlock) bool {
+func isASuccOf(b *ssa.BasicBlock, p *ssa.BasicBlock, visited ...*ssa.BasicBlock) bool {
+	for _, v := range visited {
+		if v == p {
+			return false
+		}
+	}
 	for _, s := range p.Succs {
 		if s == b {
 			return true
 		}
-		if isASuccOf(b, s) {
+		v2 := append(visited, b)
+		if isASuccOf(b, s, v2...) {
 			return true
 		}
 	}
