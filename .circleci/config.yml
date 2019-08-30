@@ -17,7 +17,9 @@ jobs:
     working_directory: /go/src/github.com/Matts966/refsafe
     steps:
       - checkout
-      - install_dep
+      - restore_dep
+      - install_dep 
+      - save_dep
       - test
       - run:
           command: |
