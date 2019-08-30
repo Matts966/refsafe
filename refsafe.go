@@ -1,6 +1,7 @@
 package refsafe
 
 import (
+	"go/types"
 	"strconv"
 
 	"github.com/Matts966/refsafe/analysisutil"
@@ -11,35 +12,43 @@ import (
 
 var Analyzer = &analysis.Analyzer{
 	Name: "refsafe",
-	Doc:  Doc,
+	Doc:  "Refsafe is a static analysis tool for using reflect package safely.",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		buildssa.Analyzer,
 	},
 }
 
-const (
-	Doc          = "Refsafe is a static analysis tool for using reflect package safely."
-	canAddr      = "reflect.CanAddr"
-	addr         = "reflect.Addr"
-	canInterface = "reflect.CanInterface"
-	getInterface = "reflect.Interface"
-)
-
-var funcToCan = map[string]string{
+var funcToCanFunc = map[*types.Func]*types.Func{}
+var funcNameToCanName = map[string]string{
 	"Addr":      "CanAddr",
 	"Interface": "CanInterface",
 	"Set":       "CanSet",
 }
 
+var funcToKind = map[*types.Func]types.Object{}
+var funcNameToKindName = map[string]string{
+	"SetPointer": "UnsafePointer",
+	"SetBool":    "Bool",
+	"SetString":  "String",
+}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	val := analysisutil.TypeOf(pass, "reflect", "Value")
+	for f, c := range funcNameToCanName {
+		ff := analysisutil.MethodOf(val, f)
+		cf := analysisutil.MethodOf(val, c)
+		funcToCanFunc[ff] = cf
+	}
 
-	setPointer := analysisutil.MethodOf(val, "SetPointer")
 	kind := analysisutil.MethodOf(val, "Kind")
-	up, err := analysisutil.LookupFromImportString("reflect", "UnsafePointer")
-	if err != nil {
-		return nil, err
+	for f, c := range funcNameToKindName {
+		ff := analysisutil.MethodOf(val, f)
+		co, err := analysisutil.LookupFromImportString("reflect", c)
+		if err != nil {
+			return nil, err
+		}
+		funcToKind[ff] = co
 	}
 
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
@@ -50,10 +59,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 		for _, b := range f.Blocks {
 			for i, instr := range b.Instrs {
-				for f, c := range funcToCan {
-					m := analysisutil.MethodOf(val, f)
-					cm := analysisutil.MethodOf(val, c)
-					if !Called(instr, nil, m) {
+				for f, c := range funcToCanFunc {
+					if !Called(instr, nil, f) {
 						continue
 					}
 
@@ -62,21 +69,24 @@ func run(pass *analysis.Pass) (interface{}, error) {
 						continue
 					}
 
-					called, ok := analysisutil.CalledFromBefore(b, i, callI.Common().Args[0], cm)
+					called, ok := analysisutil.CalledFromBefore(b, i, callI.Common().Args[0], c)
 					if called && ok {
 						continue
 					}
-					pass.Reportf(instr.Pos(), c+" should be called before calling "+f)
+
+					pass.Reportf(instr.Pos(), c.Name()+" should be called before calling "+f.Name())
 				}
 
-				recv := analysisutil.ReturnReceiverIfCalled(instr, setPointer)
-				if recv == nil {
-					continue
+				for f, k := range funcToKind {
+					recv := analysisutil.ReturnReceiverIfCalled(instr, f)
+					if recv == nil {
+						continue
+					}
+					if analysisutil.CalledBeforeAndComparedTo(b, recv, kind, k) {
+						continue
+					}
+					pass.Reportf(instr.Pos(), "Kind should be "+k.Name()+" when calling "+f.Name())
 				}
-				if analysisutil.CalledBeforeAndComparedTo(b, recv, kind, up) {
-					continue
-				}
-				pass.Reportf(instr.Pos(), "Kind should be UnsafePointer when calling SetPointer")
 			}
 		}
 	}

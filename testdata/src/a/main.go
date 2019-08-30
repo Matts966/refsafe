@@ -59,3 +59,11 @@ func test8(i *interface{}) {
 		rv.SetPointer(rv2)
 	}
 }
+
+func test9(i *interface{}) {
+	rv := reflect.ValueOf(i)
+	var rv2 string
+	if rv.CanSet() && rv.Kind() == reflect.UnsafePointer {
+		rv.SetString(rv2) // want `Kind should be String when calling SetString`
+	}
+}
