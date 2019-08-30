@@ -62,5 +62,4 @@ commands:
     steps:
       - run:
           name: Run test
-          command: go get -v -t -d ./...
-
+          command: go test -v ./...
