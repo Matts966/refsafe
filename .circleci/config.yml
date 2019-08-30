@@ -6,8 +6,6 @@ executors:
   default:
     docker:
       - image: circleci/golang:1.12
-        environment:
-          GO111MODULE: "on"
     working_directory: /go/src/github.com/Matts966/refsafe
 workflows:
   build:
