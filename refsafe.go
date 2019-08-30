@@ -33,22 +33,6 @@ var funcToCan = map[string]string{
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	// for _, sbcb := range shouldBeCalledBefore {
-	// 	sbcb[0]
-	// 	sbcb[1]
-	// }
-	// var reflect *types.Package
-	// for _, ipkg := range pass.Pkg.Imports() {
-	// 	if ipkg.Name() == "reflect" {
-	// 		reflect = ipkg
-	// 		break
-	// 	}
-	// }
-	// if reflect.Name() != "reflect" {
-	// 	return nil, nil
-	// }
-	// fmt.Println(reflect.Scope())
-	// reflect.Scope().Lookup("reflect.MakeChan")
 	val := analysisutil.TypeOf(pass, "reflect", "Value")
 
 	setPointer := analysisutil.MethodOf(val, "SetPointer")
@@ -58,31 +42,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		return nil, err
 	}
 
-	// canAddr := analysisutil.MethodOf(val, "reflect.CanAddr")
-	// addr := analysisutil.MethodOf(val, "reflect.Addr")
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
-
 	for _, f := range funcs {
-
 		if reflectNotUsed(pass, f) {
 			continue
 		}
-		// fmt.Println()
-		// fmt.Printf("f: %v\n", f)
 
 		for _, b := range f.Blocks {
 			for i, instr := range b.Instrs {
-
-				// fmt.Printf("instr: %#v\n", instr)
-				// fmt.Printf("type: %T\n", instr)
-				// fmt.Println()
-
 				for f, c := range funcToCan {
 					m := analysisutil.MethodOf(val, f)
 					cm := analysisutil.MethodOf(val, c)
-
-					// pass.Reportf(instr.Pos(), "%#v, %#v", m, cm)
-
 					if !Called(instr, nil, m) {
 						continue
 					}
@@ -93,7 +63,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					}
 
 					called, ok := analysisutil.CalledFromBefore(b, i, callI.Common().Args[0], cm)
-					// pass.Reportf(instr.Pos(), "%#v, %#v", called, ok)
 					if called && ok {
 						continue
 					}

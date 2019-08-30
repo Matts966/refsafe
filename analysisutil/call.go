@@ -3,7 +3,6 @@ package analysisutil
 import (
 	"go/token"
 	"go/types"
-	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -430,10 +429,6 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 			if !ok {
 				continue
 			}
-
-			log.Printf("%#v, %#v\n", bo.X, bo.Y)
-
-			log.Printf("O: %#v\n", o)
 
 			if bo.Op == token.EQL {
 				if b != p.Succs[0] || !binopReferredByIf(bo, ifi) {
