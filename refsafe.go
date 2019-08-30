@@ -60,7 +60,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, b := range f.Blocks {
 			for i, instr := range b.Instrs {
 				for f, c := range funcToCanFunc {
-					if !Called(instr, nil, f) {
+					if !analysisutil.Called(instr, nil, f) {
 						continue
 					}
 
