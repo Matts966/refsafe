@@ -4,6 +4,8 @@ executors:
     docker:
       - image: circleci/golang:1.12
     working_directory: /go/src/github.com/Matts966/refsafe
+    environment:
+      GO111MODULE: "on"
 workflows:
   build:
     jobs:
@@ -15,9 +17,7 @@ jobs:
     working_directory: /go/src/github.com/Matts966/refsafe
     steps:
       - checkout
-      - run:
-          command: |
-            go mod download
+      - install_dep
       - test
       - run:
           command: |
