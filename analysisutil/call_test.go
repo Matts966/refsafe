@@ -70,7 +70,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				if called, ok := analysisutil.CalledFromBefore(b, i, recv, errFunc); !(called && ok) {
 					pass.Reportf(instr.Pos(), "err not called")
 				}
-				if analysisutil.CalledBeforeAndComparedTo(b, recv, errFunc, ie) {
+				if analysisutil.CalledBeforeAndEqualTo(b, recv, errFunc, ie) {
 					continue
 				}
 				pass.Reportf(instr.Pos(), "err should be io.EOF when calling doSomethingSpecial")

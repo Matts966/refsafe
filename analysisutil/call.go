@@ -155,6 +155,7 @@ type calledFrom struct {
 	fs     []*types.Func
 	done   map[*ssa.BasicBlock]bool
 	ignore func(ssa.Instruction) bool
+	start  *ssa.BasicBlock
 }
 
 func (c *calledFrom) ignored() bool {
@@ -286,10 +287,6 @@ func CalledFrom(b *ssa.BasicBlock, i int, receiver types.Type, methods ...*types
 	return new(CalledChecker).From(b, i, receiver, methods...)
 }
 
-// // CalledFromAfter is an alias to CalledFrom to distinguish CalledFromBefore from
-// // CalledFrom.
-// var CalledFromAfter = CalledFrom
-
 // Called returns true when f is called in the instr.
 // If recv is not nil, Called also checks the receiver.
 func Called(instr ssa.Instruction, recv ssa.Value, f *types.Func) bool {
@@ -355,12 +352,6 @@ func (c *CalledChecker) FromAfter(b *ssa.BasicBlock, i int, receiver ssa.Value, 
 		receiver == nil || len(methods) == 0 {
 		return false, false
 	}
-
-	// If pointer value is indirected, get the raw value.
-	// if ru, ok := receiver.(*ssa.UnOp); ok && ru.Op == token.MUL {
-	// 	receiver = ru.X
-	// }
-
 	from := &calledFrom{recv: receiver, fs: methods, ignore: c.Ignore}
 
 	if from.instrs(b.Instrs[i+1:]) || from.preds(b) {
@@ -392,8 +383,7 @@ func (c *calledFrom) preds(b *ssa.BasicBlock) bool {
 	return true
 }
 
-func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool {
-
+func (c *calledFrom) predsAndEqualTo(b *ssa.BasicBlock, o types.Object) bool {
 	if c.done == nil {
 		c.done = map[*ssa.BasicBlock]bool{}
 	}
@@ -409,20 +399,21 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 
 	for _, p := range b.Preds {
 		if !c.instrs(p.Instrs) {
-			if !c.predsAndComparedTo(p, o) {
+			if !c.predsAndEqualTo(p, o) {
 				return false
 			}
 			continue
 		}
 
 		// The function is definitely called in this pass.
+		// Ideally we should check all the call of function,
+		// but function is called once in almost all the cases.
 		i := c.calledIndex(p.Instrs)
 		ret, ok := p.Instrs[i].(ssa.Value)
 		if !ok {
 			return false
 		}
 
-		ifi := IfInstr(p)
 		var compared bool
 		for _, rr := range *ret.Referrers() {
 			bo, ok := rr.(*ssa.BinOp)
@@ -431,7 +422,12 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 			}
 
 			if bo.Op == token.EQL {
-				if b != p.Succs[0] || !binopReferredByIf(bo, ifi) {
+				ifi := getIfInstRefferringVal(bo)
+				if ifi == nil {
+					continue
+				}
+				eqPath := ifi.Block().Succs[0]
+				if c.start != eqPath && !isASuccOf(c.start, eqPath) {
 					continue
 				}
 				if bo.X == ret {
@@ -449,7 +445,12 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 			}
 
 			if bo.Op == token.NEQ {
-				if b != p.Succs[1] || !binopReferredByIf(bo, ifi) {
+				ifi := getIfInstRefferringVal(bo)
+				if ifi == nil {
+					continue
+				}
+				eqPath := ifi.Block().Succs[1]
+				if c.start != eqPath && !isASuccOf(c.start, eqPath) {
 					continue
 				}
 				if bo.X == ret {
@@ -475,6 +476,47 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 	return true
 }
 
+func isASuccOf(b *ssa.BasicBlock, p *ssa.BasicBlock) bool {
+	for _, s := range p.Succs {
+		if s == b {
+			return true
+		}
+		if isASuccOf(b, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func getIfInstRefferringVal(v ssa.Value) *ssa.If {
+	if v == nil {
+		return nil
+	}
+
+	// Get the first IfInstruction referring v.
+	// Ideally we should check all the refferres,
+	// but the same value is used once in almost
+	// all the cases.
+	for _, br := range *v.Referrers() {
+		if i, ok := br.(*ssa.If); ok {
+			return i
+		}
+	}
+	return nil
+}
+
+func binopReferredByIf(bo *ssa.BinOp, ifi *ssa.If) bool {
+	if bo == nil || ifi == nil {
+		return false
+	}
+	for _, br := range *bo.Referrers() {
+		if br == ifi {
+			return true
+		}
+	}
+	return false
+}
+
 func isSame(o types.Object, oc ssa.Value) bool {
 	// If pointer value is indirected, get the raw value.
 	if ocu, ok := oc.(*ssa.UnOp); ok && ocu.Op == token.MUL {
@@ -496,27 +538,15 @@ func isSame(o types.Object, oc ssa.Value) bool {
 	return false
 }
 
-func binopReferredByIf(bo *ssa.BinOp, ifi *ssa.If) bool {
-	if bo == nil {
-		return false
-	}
-	for _, br := range *bo.Referrers() {
-		if br == ifi {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *CalledChecker) BeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
+func (c *CalledChecker) BeforeAndEqualTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
 	// If pointer value is indirected, get the raw value.
 	if ru, ok := receiver.(*ssa.UnOp); ok && ru.Op == token.MUL {
 		receiver = ru.X
 	}
 
-	from := &calledFrom{recv: receiver, fs: []*types.Func{method}, ignore: c.Ignore}
+	from := &calledFrom{recv: receiver, fs: []*types.Func{method}, ignore: c.Ignore, start: b}
 
-	return from.predsAndComparedTo(b, o)
+	return from.predsAndEqualTo(b, o)
 }
 
 // CalledFromBefore checks whether receiver's method is called in an instruction
@@ -532,6 +562,6 @@ func CalledFromAfter(b *ssa.BasicBlock, i int, receiver ssa.Value, methods ...*t
 	return new(CalledChecker).FromAfter(b, i, receiver, methods...)
 }
 
-func CalledBeforeAndComparedTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
-	return new(CalledChecker).BeforeAndComparedTo(b, receiver, method, o)
+func CalledBeforeAndEqualTo(b *ssa.BasicBlock, receiver ssa.Value, method *types.Func, o types.Object) bool {
+	return new(CalledChecker).BeforeAndEqualTo(b, receiver, method, o)
 }

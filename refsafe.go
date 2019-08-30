@@ -11,9 +11,10 @@ import (
 )
 
 var Analyzer = &analysis.Analyzer{
-	Name: "refsafe",
-	Doc:  "Refsafe is a static analysis tool for using reflect package safely.",
-	Run:  run,
+	Name:             "refsafe",
+	Doc:              "Refsafe is a static analysis tool for using reflect package safely.",
+	Run:              run,
+	RunDespiteErrors: true,
 	Requires: []*analysis.Analyzer{
 		buildssa.Analyzer,
 	},
@@ -26,6 +27,7 @@ var funcNameToCanName = map[string]string{
 	"Set":       "CanSet",
 }
 
+// TODO(Matts966): Support other types
 var funcToKind = map[*types.Func]types.Object{}
 var funcNameToKindName = map[string]string{
 	"SetPointer": "UnsafePointer",
@@ -82,7 +84,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					if recv == nil {
 						continue
 					}
-					if analysisutil.CalledBeforeAndComparedTo(b, recv, kind, k) {
+					if analysisutil.CalledBeforeAndEqualTo(b, recv, kind, k) {
 						continue
 					}
 					pass.Reportf(instr.Pos(), "Kind should be "+k.Name()+" when calling "+f.Name())
