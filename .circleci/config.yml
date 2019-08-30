@@ -15,6 +15,9 @@ jobs:
     working_directory: /go/src/github.com/Matts966/refsafe
     steps:
       - checkout
+      - run:
+          command: |
+            go mod download
       - test
       - run:
           command: |
