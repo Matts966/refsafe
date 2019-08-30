@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gostaticanalysis/analysisutil"
+	"github.com/Matts966/refsafe/analysisutil"
 	"golang.org/x/tools/go/ssa"
 )
 
