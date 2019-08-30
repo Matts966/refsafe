@@ -5,6 +5,9 @@ You can find unsafe use of `reflect` package by using this tool.
 ```
 $ go get -u github.com/Matts966/refsafe/cmd/refsafe
 $ refsafe ./your-project/...
+or specify package name like
+$ TARGET_PKG=github.com/Matts966/refsafe
+$ refsafe $TARGET_PKG
 ```
 
 - [x] Ignore functions that do not import `reflect`.
