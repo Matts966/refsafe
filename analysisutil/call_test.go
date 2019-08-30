@@ -45,6 +45,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
 	for _, f := range funcs {
 		for _, b := range f.Blocks {
@@ -60,6 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					pass.Reportf(instr.Pos(), "open should be called before calling doSomething")
 				}
 			}
+
 			for i, instr := range b.Instrs {
 				recv := analysisutil.ReturnReceiverIfCalled(instr, doSomethingSpecial)
 				if recv == nil {

@@ -1,7 +1,7 @@
 package refsafe
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/Matts966/refsafe/analysisutil"
 	"golang.org/x/tools/go/analysis"
@@ -32,15 +32,6 @@ var funcToCan = map[string]string{
 	"Set":       "CanSet",
 }
 
-// var shouldBeCalledBefore = [][2]string{
-// 	{canAddr, addr},
-// }
-
-// func getMethod(name string) *types.Func {
-// 	rep := regexp.MustCompile(`^(\(.*\))?\.(.*)$`)
-// 	name = rep.ReplaceAllString()
-// }
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	// for _, sbcb := range shouldBeCalledBefore {
 	// 	sbcb[0]
@@ -59,12 +50,23 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// fmt.Println(reflect.Scope())
 	// reflect.Scope().Lookup("reflect.MakeChan")
 	val := analysisutil.TypeOf(pass, "reflect", "Value")
+
+	setPointer := analysisutil.MethodOf(val, "SetPointer")
+	kind := analysisutil.MethodOf(val, "Kind")
+	up, err := analysisutil.LookupFromImportString("reflect", "UnsafePointer")
+	if err != nil {
+		return nil, err
+	}
+
 	// canAddr := analysisutil.MethodOf(val, "reflect.CanAddr")
 	// addr := analysisutil.MethodOf(val, "reflect.Addr")
 	funcs := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA).SrcFuncs
-	// TODO(Matts966): Check the code depends on reflect, and early return if not.
+
 	for _, f := range funcs {
 
+		if reflectNotUsed(pass, f) {
+			continue
+		}
 		// fmt.Println()
 		// fmt.Printf("f: %v\n", f)
 
@@ -84,57 +86,25 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					if !Called(instr, nil, m) {
 						continue
 					}
-					
 
 					callI, ok := instr.(ssa.CallInstruction)
 					if !ok {
 						continue
 					}
 
-					
 					called, ok := analysisutil.CalledFromBefore(b, i, callI.Common().Args[0], cm)
 					// pass.Reportf(instr.Pos(), "%#v, %#v", called, ok)
 					if called && ok {
 						continue
 					}
 					pass.Reportf(instr.Pos(), c+" should be called before calling "+f)
-
-					fmt.Printf("OK!!!!!!!!!!!!!\n")
 				}
 
-				setPointer := analysisutil.MethodOf(val, "SetPointer")
-				kind := analysisutil.MethodOf(val, "Kind")
-				// up := analysisutil.TypeOf(pass, "reflect", "Type")
-
-				up, err := analysisutil.LookupFromImportString("reflect", "UnsafePointer")
-				if err != nil {
-					return nil, err
-				}
-
-				// upo := analysisutil.ObjectOf(pass, "reflect", "Interface")
-
-				// for _, p := range b.Preds {
-				// 	i := analysisutil.IfInstr(p)
-				// 	if i != nil {
-				// 		b, ok := i.Cond.(*ssa.BinOp)
-
-				// 		if ok {
-				// 			// log.Printf("%#v\n", b.Y)
-				// 			// log.Printf("%#v\n", up)
-				// 		}
-				// 	}
-				// }
-
-				if !Called(instr, nil, setPointer) {
+				recv := analysisutil.ReturnReceiverIfCalled(instr, setPointer)
+				if recv == nil {
 					continue
 				}
-				callI, ok := instr.(ssa.CallInstruction)
-				if !ok {
-					continue
-				}
-
-				called, compared := analysisutil.CalledBeforeAndComparedTo(b, callI.Common().Args[0], kind, up)
-				if called && compared {
+				if analysisutil.CalledBeforeAndComparedTo(b, recv, kind, up) {
 					continue
 				}
 				pass.Reportf(instr.Pos(), "Kind should be UnsafePointer when calling SetPointer")
@@ -142,4 +112,28 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 	return nil, nil
+}
+
+func reflectNotUsed(pass *analysis.Pass, f *ssa.Function) bool {
+	if f == nil {
+		return true
+	}
+	fo := f.Object()
+	if fo == nil {
+		return true
+	}
+	ff := analysisutil.File(pass, fo.Pos())
+	if ff == nil {
+		return true
+	}
+	for _, i := range ff.Imports {
+		path, err := strconv.Unquote(i.Path.Value)
+		if err != nil {
+			continue
+		}
+		if path == "reflect" {
+			return false
+		}
+	}
+	return true
 }

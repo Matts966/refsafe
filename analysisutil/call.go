@@ -3,6 +3,7 @@ package analysisutil
 import (
 	"go/token"
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/ssa"
 )
@@ -430,18 +431,22 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 				continue
 			}
 
+			log.Printf("%#v, %#v\n", bo.X, bo.Y)
+
+			log.Printf("O: %#v\n", o)
+
 			if bo.Op == token.EQL {
-				if b == p.Succs[0] {
+				if b != p.Succs[0] || !binopReferredByIf(bo, ifi) {
 					continue
 				}
 				if bo.X == ret {
-					if isSame(o, bo.Y, bo, ifi) {
+					if isSame(o, bo.Y) {
 						compared = true
 						break
 					}
 				}
 				if bo.Y == ret {
-					if isSame(o, bo.X, bo, ifi) {
+					if isSame(o, bo.X) {
 						compared = true
 						break
 					}
@@ -449,17 +454,17 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 			}
 
 			if bo.Op == token.NEQ {
-				if b != p.Succs[1] {
+				if b != p.Succs[1] || !binopReferredByIf(bo, ifi) {
 					continue
 				}
 				if bo.X == ret {
-					if isSame(o, bo.Y, bo, ifi) {
+					if isSame(o, bo.Y) {
 						compared = true
 						break
 					}
 				}
 				if bo.Y == ret {
-					if isSame(o, bo.X, bo, ifi) {
+					if isSame(o, bo.X) {
 						compared = true
 						break
 					}
@@ -475,19 +480,29 @@ func (c *calledFrom) predsAndComparedTo(b *ssa.BasicBlock, o types.Object) bool 
 	return true
 }
 
-func isSame(o types.Object, oc ssa.Value, bo *ssa.BinOp, ifi *ssa.If) bool {
+func isSame(o types.Object, oc ssa.Value) bool {
 	// If pointer value is indirected, get the raw value.
 	if ocu, ok := oc.(*ssa.UnOp); ok && ocu.Op == token.MUL {
 		oc = ocu.X
 	}
 
-	m, ok := oc.(ssa.Member)
-
-	if !ok {
-		return false
+	switch oct := oc.(type) {
+	case ssa.Member:
+		if oct.Object().Id() == o.Id() {
+			return true
+		}
+	case *ssa.Const:
+		if c, ok := o.(*types.Const); ok {
+			if c.Val() == oct.Value {
+				return true
+			}
+		}
 	}
+	return false
+}
 
-	if m.Object().Id() != o.Id() {
+func binopReferredByIf(bo *ssa.BinOp, ifi *ssa.If) bool {
+	if bo == nil {
 		return false
 	}
 	for _, br := range *bo.Referrers() {
