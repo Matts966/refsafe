@@ -486,7 +486,7 @@ func isASuccOf(b *ssa.BasicBlock, p *ssa.BasicBlock, visited ...*ssa.BasicBlock)
 		if s == b {
 			return true
 		}
-		v2 := append(visited, b)
+		v2 := append(visited, p)
 		if isASuccOf(b, s, v2...) {
 			return true
 		}

@@ -1,6 +1,9 @@
 package main
 
-import "io"
+import (
+	"fmt"
+	"io"
+)
 
 type st struct {
 	o bool
@@ -85,4 +88,26 @@ func test8() {
 		return
 	}
 	s.doSomethingSpecial() // want `err should be io.EOF when calling doSomethingSpecial`
+}
+
+func test9() {
+	var s st
+	se := s.err()
+loop:
+	if se == nil {
+		return
+	}
+	if se == fmt.Errorf("") {
+		return
+	}
+	if se == fmt.Errorf("not ok") {
+		if se == fmt.Errorf("not not not ok") {
+			goto loop
+		}
+		return
+	}
+	if se == io.EOF {
+		s.doSomethingSpecial()
+	}
+	return
 }
