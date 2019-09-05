@@ -366,7 +366,7 @@ func (c *calledFrom) preds(b *ssa.BasicBlock) bool {
 	}
 
 	if c.done[b] {
-		return false
+		return true
 	}
 	c.done[b] = true
 
@@ -389,7 +389,7 @@ func (c *calledFrom) predsAndEqualTo(b *ssa.BasicBlock, o types.Object) bool {
 	}
 
 	if c.done[b] {
-		return false
+		return true
 	}
 	c.done[b] = true
 

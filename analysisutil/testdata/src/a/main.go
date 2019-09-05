@@ -94,6 +94,7 @@ func test9() {
 	var s st
 	se := s.err()
 loop:
+	// Check if the analyzer properly stops and lints in cycle.
 	if se == nil {
 		return
 	}
