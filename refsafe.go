@@ -4,7 +4,7 @@ import (
 	"go/types"
 	"strconv"
 
-	"github.com/Matts966/refsafe/analysisutil"
+	"github.com/Matts966/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -46,10 +46,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	kind := analysisutil.MethodOf(val, "Kind")
 	for f, c := range funcNameToKindName {
 		ff := analysisutil.MethodOf(val, f)
-		co, err := analysisutil.LookupFromImportString("reflect", c)
-		if err != nil {
-			return nil, err
-		}
+		co := analysisutil.ObjectOf(pass, "reflect", c)
 		funcToKind[ff] = co
 	}
 
